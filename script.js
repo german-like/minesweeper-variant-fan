@@ -73,11 +73,20 @@ function renderBoard(board){
     el.dataset.r=r;
     el.dataset.c=c;
 
+    // ← ココを削除
+    // （open の基本表示は updateCell に任せる）
+    /*
     if(cell.open){
       el.classList.add('open');
       if(cell.mine) el.textContent='💣';
       else if(cell.adjacent>0) el.textContent=cell.adjacent;
     }
+    */
+
+    // ======================
+    // 🎯 フラグ消失防止：必ずこれを呼ぶ！
+    // ======================
+    updateCell(el, cell);
 
     el.addEventListener('click',()=>{
       if(gameOver) return;
@@ -95,16 +104,6 @@ function renderBoard(board){
     });
 
     boardEl.appendChild(el);
-  }
-}
-
-function updateCell(el,cell){
-  if(cell.flagged){
-    el.classList.add('flag');
-    el.textContent='🚩';
-  } else {
-    el.classList.remove('flag');
-    el.textContent=cell.open?(cell.mine?'💣':(cell.adjacent>0?cell.adjacent:'')):'';
   }
 }
 
