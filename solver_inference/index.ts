@@ -1,8 +1,8 @@
 // index.ts
 
-import { runBaseInference, BaseInferenceResult } from "./base";
-import { runSetInference, InferenceResult as SetResult } from "./set";
-import { runUnderstoodInference, UnderstoodResult } from "./understood";
+import { runBaseInference, BaseInferenceResult } from "./base.ts";
+import { runSetInference, InferenceResult as SetResult } from "./set.ts";
+import { runUnderstoodInference, UnderstoodResult } from "./understood.ts";
 
 /**
  * 盤面情報を取り出すためのインターフェース。
