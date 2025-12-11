@@ -17,6 +17,10 @@ html,body{height:100%; margin:0; font-family: "Noto Sans JP", "Helvetica Neue", 
   padding:20px;
 }
 
+body {
+  background: #333;
+}
+
 h1{
   margin:0 0 12px 0;
   font-size:20px;
