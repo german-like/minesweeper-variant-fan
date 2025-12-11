@@ -1,19 +1,17 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>マインスイーパー</title>
-<link rel="stylesheet" href="style.css"></style>
+  <meta charset="UTF-8">
+  <title>拡張マインスイーパー</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<h1>マインスイーパー</h1>
-<button id="modeBtn">モード: 掘る</button>
-<div id="board"></div>
-<button id="reset">リセット</button>
-
-<script type="module" src="script.js"></script>
-<script type="module" src="./solver_inference/index.js"></script>
-
+  <h1>拡張マインスイーパー</h1>
+  <div id="controls">
+    <button id="modeBtn">シャベル</button>
+    <span id="status"></span>
+  </div>
+  <div id="board"></div>
+  <script src="script.js"></script>
 </body>
 </html>
