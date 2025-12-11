@@ -70,7 +70,7 @@ button#modeBtn{
 /* ボード：単色系 (薄い青) */
 .board{
   display:inline-grid;
-  gap:6px;
+  gap:6px 6px; /* 横間隔と縦間隔を同じに */
   background:transparent;
   padding:6px;
 }
