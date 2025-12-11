@@ -100,6 +100,11 @@ function openCell(r, c) {
   const cell = board[r][c];
   if (cell.opened || cell.element.textContent === '🚩') return;
 
+  if (cell.number > 0) {
+    cell.element.textContent = cell.number;
+    cell.element.dataset.number = cell.number;
+  }
+
   cell.opened = true;
   cell.element.classList.add('open');
 
