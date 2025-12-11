@@ -1,3 +1,7 @@
+import { generateSolvableBoard } from "./logic_solver.js";
+
+const board = generateSolvableBoard(9, 9, 10);
+
 import { applyBasicLogic } from "./solver_inference/index.ts";
 
 const rows = 5;
