@@ -1,74 +1,111 @@
+/* =========================
+   ベースデザイン
+========================= */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f5f5f5;
+  color: #111;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 30px;
-  background: linear-gradient(to bottom, #1e3c72, #2a5298);
-  color: #fff;
+  padding-top: 30px;
 }
 
+/* =========================
+   タイトル
+========================= */
+h1 {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #222;
+  margin-bottom: 20px;
+}
+
+/* =========================
+   ボード
+========================= */
 #board {
   display: grid;
   grid-template-columns: repeat(9, 40px);
-  grid-gap: 5px;
-  margin-top: 20px;
+  grid-gap: 4px;
+  margin: 20px 0;
 }
 
+/* =========================
+   セル
+========================= */
 .cell {
   width: 40px;
   height: 40px;
-  background: #4a90e2;
+  border-radius: 6px;
+  background: #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+  cursor: pointer;
   text-align: center;
   line-height: 40px;
   font-weight: bold;
-  cursor: pointer;
   user-select: none;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-  transition: all 0.2s ease;
-  color: #fff;
+  transition: 
+    transform 0.15s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
+/* ホバー時 */
 .cell:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.35);
 }
 
+/* 開いたセル */
 .cell.open {
-  background: #ececec;
-  color: #333;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  background: #fafafa;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
   cursor: default;
 }
 
+/* 地雷 */
 .cell.mine {
-  background: #e74c3c;
+  background: #333;
   color: #fff;
 }
 
-.cell[data-number="1"] { color: #3498db; }
-.cell[data-number="2"] { color: #27ae60; }
-.cell[data-number="3"] { color: #e67e22; }
-.cell[data-number="4"] { color: #8e44ad; }
-.cell[data-number="5"] { color: #c0392b; }
-.cell[data-number="6"] { color: #16a085; }
-.cell[data-number="7"] { color: #2c3e50; }
-.cell[data-number="8"] { color: #7f8c8d; }
+/* =========================
+   数字（すべて無彩色の濃淡で）
+========================= */
+.cell[data-number="1"] { color: #555; }
+.cell[data-number="2"] { color: #444; }
+.cell[data-number="3"] { color: #333; }
+.cell[data-number="4"] { color: #222; }
+.cell[data-number="5"] { color: #111; }
+.cell[data-number="6"] { color: #666; }
+.cell[data-number="7"] { color: #777; }
+.cell[data-number="8"] { color: #888; }
 
-#modeBtn, #reset {
-  margin: 10px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(45deg, #6a11cb, #2575fc);
-  color: #fff;
+/* =========================
+   ボタン
+========================= */
+#modeBtn,
+#reset {
+  padding: 8px 20px;
+  margin: 5px;
+  font-size: 15px;
   font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  background: #222;
+  color: #fff;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: 
+    background 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
 }
 
-#modeBtn:hover, #reset:hover {
+/* ボタンホバー */
+#modeBtn:hover,
+#reset:hover {
+  background: #111;
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
