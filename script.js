@@ -1,4 +1,4 @@
-import { applyBasicLogic } from "./solver_inference/base.js";
+import { applyBasicLogic } from "./solver_inference/base.ts";
 
 function solverStep() {
     const changed = applyBasicLogic(board, openCell);
