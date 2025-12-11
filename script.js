@@ -11,33 +11,40 @@ const numberColors = {1:'#00f',2:'#0a0',3:'#f00',4:'#00a',5:'#a00',6:'#0aa',7:'#
 
 // --- 盤面生成（初期化） ---
 function initializeBoard(safeRow, safeCol) {
+    // 各マスを必ず新しいオブジェクトとして作る
     let tempBoard = Array.from({ length: NUM_ROWS }, () =>
-        Array.from({ length: NUM_COLS }, () => ({ isMine:false, count:0, revealed:false }))
+        Array.from({ length: NUM_COLS }, () => ({ isMine: false, count: 0, revealed: false }))
     );
 
     let minesPlaced = 0;
     while (minesPlaced < NUM_MINES) {
-        const r = Math.floor(Math.random()*NUM_ROWS);
-        const c = Math.floor(Math.random()*NUM_COLS);
-        const isSafeZone = (Math.abs(r-safeRow)<=1 && Math.abs(c-safeCol)<=1);
+        const r = Math.floor(Math.random() * NUM_ROWS);
+        const c = Math.floor(Math.random() * NUM_COLS);
+        const isSafeZone = Math.abs(r - safeRow) <= 1 && Math.abs(c - safeCol) <= 1;
+
         if (!tempBoard[r][c].isMine && !isSafeZone) {
             tempBoard[r][c].isMine = true;
             minesPlaced++;
         }
     }
 
-    for (let r=0;r<NUM_ROWS;r++) {
-        for (let c=0;c<NUM_COLS;c++) {
+    for (let r = 0; r < NUM_ROWS; r++) {
+        for (let c = 0; c < NUM_COLS; c++) {
             if (!tempBoard[r][c].isMine) {
-                let count=0;
-                for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {
-                    const nr=r+dr,nc=c+dc;
-                    if (nr>=0 && nr<NUM_ROWS && nc>=0 && nc<NUM_COLS && tempBoard[nr][nc].isMine) count++;
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = r + dr, nc = c + dc;
+                        if (nr >= 0 && nr < NUM_ROWS && nc >= 0 && nc < NUM_COLS && tempBoard[nr][nc].isMine) {
+                            count++;
+                        }
+                    }
                 }
                 tempBoard[r][c].count = count;
             }
         }
     }
+
     return tempBoard;
 }
 
