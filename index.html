@@ -1,16 +1,163 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>完全ロジック マインスイーパー</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>マインスイーパー</title>
+<style>
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 30px;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(9, 30px);
+    grid-gap: 2px;
+  }
+  .cell {
+    width: 30px;
+    height: 30px;
+    background-color: #ccc;
+    text-align: center;
+    line-height: 30px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cell.open {
+    background-color: #eee;
+    cursor: default;
+  }
+  .cell.mine {
+    background-color: red;
+  }
+</style>
 </head>
 <body>
-    <h1>完全ロジック マインスイーパー</h1>
-    <p id="status">盤面を生成中です...</p>
-    <div id="gameBoard"></div>
-    <button onclick="generateLogicalBoard()">新しい盤面を生成</button>
-    <script src="script.js"></script>
-    <script src="solver.js"></script>
+
+<h1>マインスイーパー</h1>
+<div id="board"></div>
+<button id="reset">リセット</button>
+
+<script>
+const rows = 9;
+const cols = 9;
+const minesCount = 10;
+
+let board = [];
+let mineLocations = [];
+
+function createBoard() {
+  const boardElement = document.getElementById('board');
+  boardElement.innerHTML = '';
+  board = [];
+  mineLocations = [];
+
+  // 地雷の場所をランダムに決定
+  while (mineLocations.length < minesCount) {
+    const idx = Math.floor(Math.random() * rows * cols);
+    if (!mineLocations.includes(idx)) mineLocations.push(idx);
+  }
+
+  // セル作成
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      boardElement.appendChild(cell);
+
+      // 左クリック
+      cell.addEventListener('click', () => openCell(r, c));
+      // 右クリック（旗）
+      cell.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (!cell.classList.contains('open')) {
+          cell.textContent = cell.textContent === '🚩' ? '' : '🚩';
+        }
+      });
+
+      row.push({ element: cell, mine: false, opened: false, number: 0 });
+    }
+    board.push(row);
+  }
+
+  // 地雷をセット
+  mineLocations.forEach(idx => {
+    const r = Math.floor(idx / cols);
+    const c = idx % cols;
+    board[r][c].mine = true;
+  });
+
+  // 数字を計算
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].mine) continue;
+      let count = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+            if (board[nr][nc].mine) count++;
+          }
+        }
+      }
+      board[r][c].number = count;
+    }
+  }
+}
+
+function openCell(r, c) {
+  const cell = board[r][c];
+  if (cell.opened || cell.element.textContent === '🚩') return;
+
+  cell.opened = true;
+  cell.element.classList.add('open');
+
+  if (cell.mine) {
+    cell.element.classList.add('mine');
+    cell.element.textContent = '💣';
+    alert('ゲームオーバー！');
+    revealMines();
+    return;
+  }
+
+  if (cell.number > 0) {
+    cell.element.textContent = cell.number;
+  } else {
+    // 周囲を再帰で開く
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          openCell(nr, nc);
+        }
+      }
+    }
+  }
+}
+
+function revealMines() {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].mine) {
+        board[r][c].element.classList.add('mine');
+        board[r][c].element.textContent = '💣';
+      }
+    }
+  }
+}
+
+document.getElementById('reset').addEventListener('click', createBoard);
+
+createBoard();
+</script>
+
 </body>
 </html>
