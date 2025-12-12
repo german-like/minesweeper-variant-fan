@@ -1,260 +1,231 @@
-const boardEl = document.getElementById("board");
-const presetSelect = document.getElementById("preset");
+const boardElem = document.getElementById("board");
+const preset = document.getElementById("preset");
 const ruleSelect = document.getElementById("ruleSelect");
 const newBtn = document.getElementById("newBtn");
 const modeBtn = document.getElementById("modeBtn");
-const statusEl = document.getElementById("status");
-const flagsLeftEl = document.getElementById("flagsLeft");
+const flagsLeftElem = document.getElementById("flagsLeft");
+const statusElem = document.getElementById("status");
 
-let rows = 5, cols = 5, mineCount = 10;
-let grid = [];
-let firstClick = false;
+let rows = 5;
+let cols = 5;
+let mines = 5;       // 後で自動設定
+let board = [];
+let firstClick = true;
 let gameOver = false;
-let shovelMode = true;
+let mode = "dig";    // dig / flag
+let mineCount = 0;
 let flagsLeft = 0;
+let rule = "normal";
 
-/* -------------------------------------------------- */
-/* UI 有効/無効 */
-/* -------------------------------------------------- */
-function setControlsEnabled(enabled) {
-  presetSelect.disabled = !enabled;
-  ruleSelect.disabled = !enabled;
+newBtn.onclick = () => newGame();
+modeBtn.onclick = switchMode;
+
+preset.onchange = () => setPreset();
+ruleSelect.onchange = () => {
+  if (!gameOver && !firstClick) {
+    ruleSelect.value = rule;
+    return;
+  }
+  rule = ruleSelect.value;
+};
+
+function setPreset() {
+  const val = preset.value.split("x");
+  rows = Number(val[0]);
+  cols = Number(val[1]);
 }
 
-/* -------------------------------------------------- */
-/* 盤面生成 */
-/* -------------------------------------------------- */
-function createGrid() {
-  grid = [];
+function switchMode() {
+  mode = mode === "dig" ? "flag" : "dig";
+  modeBtn.textContent = mode === "dig" ? "シャベル" : "旗";
+}
+
+function newGame() {
+  setPreset();
+  rule = ruleSelect.value;
+
+  // 地雷率 30〜50% のランダム
+  const rate = 0.3 + Math.random() * 0.2;
+  mineCount = Math.floor(rows * cols * rate);
+  flagsLeft = mineCount;
+
+  firstClick = true;
+  gameOver = false;
+  flagsLeftElem.textContent = flagsLeft;
+  statusElem.textContent = "準備完了";
+
+  createBoard();
+}
+
+function createBoard() {
+  boardElem.innerHTML = "";
+  boardElem.style.gridTemplateColumns = `repeat(${cols}, 32px)`;
+
+  board = [];
   for (let r = 0; r < rows; r++) {
-    const row = [];
+    board[r] = [];
     for (let c = 0; c < cols; c++) {
-      row.push({
+      board[r][c] = {
         mine: false,
-        revealed: false,
+        open: false,
         flag: false,
-        num: 0,
-        dark: false,
-      });
+        count: 0
+      };
     }
-    grid.push(row);
+  }
+
+  // UI作成
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+
+      // チェス盤の暗マス
+      if ((r + c) % 2 === 1) {
+        cell.classList.add("dark");
+      }
+
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      cell.oncontextmenu = (e) => e.preventDefault();
+      cell.addEventListener("mousedown", (e) => {
+        if (gameOver) return;
+        if (e.button === 0) handleLeft(r, c);
+        else handleRight(r, c);
+      });
+
+      boardElem.appendChild(cell);
+    }
   }
 }
 
-function placeMines() {
+// 初手セーフ地雷配置
+function placeMines(safeR, safeC) {
   let placed = 0;
   while (placed < mineCount) {
     const r = Math.floor(Math.random() * rows);
     const c = Math.floor(Math.random() * cols);
-    if (!grid[r][c].mine) {
-      grid[r][c].mine = true;
-      placed++;
-    }
+
+    if (r === safeR && c === safeC) continue;
+    if (board[r][c].mine) continue;
+
+    board[r][c].mine = true;
+    placed++;
   }
+
+  countNumbers();
 }
 
-/* 増幅ルール：チェス盤濃淡 */
-function applyChessPattern() {
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++)
-      grid[r][c].dark = ((r + c) % 2 === 0);
-}
-
-/* 数字計算 */
-function computeAdjacencies() {
-  const dirs = [
-    [-1,-1],[-1,0],[-1,1],
-    [0,-1],        [0,1],
-    [1,-1],[1,0],[1,1]
-  ];
+function countNumbers() {
+  const dy = [-1,-1,-1,0,0,1,1,1];
+  const dx = [-1,0,1,-1,1,-1,0,1];
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      let count = 0;
-      for (const [dr, dc] of dirs) {
-        const nr = r + dr, nc = c + dc;
+      if (board[r][c].mine) continue;
+      let cnt = 0;
+
+      for (let i = 0; i < 8; i++) {
+        const nr = r + dy[i];
+        const nc = c + dx[i];
         if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-        if (grid[nr][nc].mine) {
-          // 通常 or 増幅
-          if (ruleSelect.value === "amplify" && grid[nr][nc].dark)
-            count += 2;
-          else
-            count++;
+
+        if (board[nr][nc].mine) {
+          // 増幅ルール：暗マスは 2カウント
+          if (rule === "amplify" && ((nr + nc) % 2 === 1)) cnt += 2;
+          else cnt += 1;
         }
       }
-      grid[r][c].num = count;
+      board[r][c].count = cnt;
     }
   }
 }
 
-/* -------------------------------------------------- */
-/* 描画 */
-/* -------------------------------------------------- */
-function renderBoard() {
-  boardEl.style.gridTemplateColumns = `repeat(${cols}, 32px)`;
-  boardEl.innerHTML = "";
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cell = grid[r][c];
-      const div = document.createElement("div");
-      div.className = "cell";
-
-      if (cell.dark && ruleSelect.value === "amplify") div.classList.add("dark");
-      if (cell.revealed) div.classList.add("revealed");
-      if (cell.flag) div.classList.add("flag");
-
-      if (cell.revealed) {
-        div.classList.remove("dark"); // 開いたら白
-        if (cell.mine) {
-          div.classList.add("mine");
-          div.textContent = "●";
-        } else if (cell.num > 0) {
-          div.textContent = cell.num;
-          div.classList.add(`num${cell.num}`);
-        }
-      }
-
-      div.addEventListener("click", () => onCellClick(r, c));
-      div.addEventListener("contextmenu", e => {
-        e.preventDefault();
-        toggleFlag(r, c);
-      });
-
-      boardEl.appendChild(div);
-    }
-  }
-
-  flagsLeftEl.textContent = flagsLeft;
-}
-
-/* -------------------------------------------------- */
-/* ゲームロジック */
-/* -------------------------------------------------- */
-function toggleFlag(r, c) {
-  if (gameOver) return;
-  const cell = grid[r][c];
-  if (cell.revealed) return;
-
-  if (cell.flag) {
-    cell.flag = false;
-    flagsLeft++;
-  } else {
-    if (flagsLeft > 0) {
-      cell.flag = true;
-      flagsLeft--;
-    }
-  }
-  renderBoard();
-}
-
-function onCellClick(r, c) {
+function handleLeft(r, c) {
   if (gameOver) return;
 
-  // ゲーム中はルール変更不可
-  if (!firstClick) {
-    firstClick = true;
-    setControlsEnabled(false);
+  if (firstClick) {
+    placeMines(r, c);
+    firstClick = false;
   }
 
-  const cell = grid[r][c];
-
-  if (cell.flag) return;
-
-  // 初回クリック → そのマスは安全にする
-  if (firstClick && !cell.revealed && cell.mine) {
-    cell.mine = false;
-    recomputeMines();
-  }
-
-  reveal(r, c);
-  checkWin();
-  renderBoard();
-}
-
-function reveal(r, c) {
-  const cell = grid[r][c];
-  if (cell.revealed || cell.flag) return;
-
-  cell.revealed = true;
+  const cell = board[r][c];
+  if (cell.open || cell.flag) return;
 
   if (cell.mine) {
+    revealAll();
+    statusElem.textContent = "ゲームオーバー";
     gameOver = true;
-    statusEl.textContent = "ゲームオーバー";
-    revealAllMines();
-    setControlsEnabled(true); // ← ここポイント
     return;
   }
 
-  if (cell.num === 0) {
-    const dirs = [
-      [-1,-1],[-1,0],[-1,1],
-      [0,-1],        [0,1],
-      [1,-1],[1,0],[1,1]
-    ];
-    for (const [dr, dc] of dirs) {
-      const nr = r + dr, nc = c + dc;
+  openCell(r, c);
+}
+
+function handleRight(r, c) {
+  if (gameOver) return;
+  const cell = board[r][c];
+  if (cell.open) return;
+
+  cell.flag = !cell.flag;
+  flagsLeft += cell.flag ? -1 : 1;
+  flagsLeftElem.textContent = flagsLeft;
+
+  updateCell(r, c);
+}
+
+function openCell(r, c) {
+  const cell = board[r][c];
+  if (cell.open || cell.flag) return;
+
+  cell.open = true;
+  updateCell(r, c);
+
+  if (cell.count === 0) {
+    const dy = [-1,-1,-1,0,0,1,1,1];
+    const dx = [-1,0,1,-1,1,-1,0,1];
+    for (let i = 0; i < 8; i++) {
+      const nr = r + dy[i];
+      const nc = c + dx[i];
       if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-      reveal(nr, nc);
+      openCell(nr, nc);
     }
   }
 }
 
-function revealAllMines() {
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++)
-      if (grid[r][c].mine) grid[r][c].revealed = true;
+function updateCell(r, c) {
+  const idx = r * cols + c;
+  const elem = boardElem.children[idx];
+  const cell = board[r][c];
 
-  renderBoard();
+  elem.className = "cell";
+  if ((r + c) % 2 === 1) elem.classList.add("dark");
+
+  if (cell.open) {
+    elem.classList.add("open");
+    if (cell.count > 0) elem.textContent = cell.count;
+  } else if (cell.flag) {
+    elem.classList.add("flag");
+    elem.textContent = "⚑";
+  } else {
+    elem.textContent = "";
+  }
 }
 
-/* 勝利判定 */
-function checkWin() {
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++)
-      if (!grid[r][c].mine && !grid[r][c].revealed) return;
+function revealAll() {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      const elem = boardElem.children[idx];
+      const cell = board[r][c];
 
-  gameOver = true;
-  statusEl.textContent = "クリア！";
-  setControlsEnabled(true); // ← 終了後はルール変更可
+      if (cell.mine) {
+        elem.classList.add("mine");
+        elem.textContent = "×";
+      }
+    }
+  }
 }
 
-/* 初回クリック補正後の数値再計算 */
-function recomputeMines() {
-  computeAdjacencies();
-}
-
-/* -------------------------------------------------- */
-/* 新規ゲーム */
-/* -------------------------------------------------- */
-function startNew() {
-  gameOver = false;
-  firstClick = false;
-  statusEl.textContent = "準備完了";
-
-  // プリセット反映
-  const [w, h] = presetSelect.value.split("x").map(Number);
-  rows = w;
-  cols = h;
-  mineCount = Math.floor(rows * cols * 0.2);
-
-  flagsLeft = mineCount;
-  setControlsEnabled(true);
-
-  createGrid();
-  placeMines();
-  if (ruleSelect.value === "amplify") applyChessPattern();
-  computeAdjacencies();
-  renderBoard();
-}
-
-newBtn.addEventListener("click", startNew);
-
-/* モード切替（シャベル ⇄ 旗） */
-modeBtn.addEventListener("click", () => {
-  shovelMode = !shovelMode;
-  modeBtn.textContent = shovelMode ? "シャベル" : "旗";
-});
-
-/* 初期開始 */
-startNew();
+newGame();
