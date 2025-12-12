@@ -32,7 +32,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 4px;
-  background: #eee;
+  background: #bbb;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -56,7 +56,7 @@ body {
 }
 
 .cell.dark {
-  background: #ccc;
+  background: #aaa;
 }
 
 #controls {
