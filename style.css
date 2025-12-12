@@ -1,5 +1,5 @@
 body {
-  background: #fff;
+  background: #333;
   font-family: sans-serif;
   display: flex;
   justify-content: center;
@@ -55,7 +55,7 @@ body {
 }
 
 .cell.dark {
-  background: #ddd;
+  background: #ccc;
 }
 
 #controls {
