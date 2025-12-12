@@ -6,7 +6,7 @@ const modeBtn = document.getElementById("modeBtn");
 const statusEl = document.getElementById("status");
 const flagsLeftEl = document.getElementById("flagsLeft");
 
-let rows = 5, cols = 5, mineCount = 5;
+let rows = 5, cols = 5, mineCount = 10;
 let grid = [];
 let firstClick = false;
 let gameOver = false;
