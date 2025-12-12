@@ -155,6 +155,7 @@ function onCellClick(r,c){
 
 function startNew(){
   const preset = presetSelect.value.split('x');
+  setControlsEnabled(true);
   rows = parseInt(preset[0]); cols = parseInt(preset[1]);
   mineCount = Math.floor(rows*cols*0.2);
   flagsLeft = mineCount;
