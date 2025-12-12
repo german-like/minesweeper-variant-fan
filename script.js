@@ -72,6 +72,7 @@ function renderBoard(){
 
       if(cell.revealed){
         div.classList.add('revealed');
+        div.classList.remove('dark');
         if(cell.mine){ div.classList.add('mine'); div.textContent='●'; }
         else if(cell.num>0) div.textContent = cell.num;
       } else if(cell.flagged){
