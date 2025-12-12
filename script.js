@@ -95,6 +95,11 @@ function renderBoard(){
   }
 }
 
+function setControlsEnabled(enabled) {
+    ruleSelect.disabled = !enabled;
+    presetSelect.disabled = !enabled;
+}
+
 function revealCell(r,c){
   const cell = grid[r][c];
   if(cell.revealed || cell.flagged) return;
@@ -123,6 +128,8 @@ function checkWin(){
 
 function onCellClick(r,c){
   if(gameOver) return;
+
+  setControlsEnabled(false);
 
   const cell = grid[r][c];
   if(flagMode){
