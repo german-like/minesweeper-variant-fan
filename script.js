@@ -21,36 +21,81 @@ let shovelMode = true;   // true: 掘る, false: 旗モード
 
 
 // =============================================
-// .brd ファイルの読み込み
+// .brd ファイルの読み込み（0/1/- 対応版）
 // =============================================
 async function loadBoards() {
     const response = await fetch("boards.brd");
     const text = await response.text();
 
     const boards = [];
-    let currentBoard = [];
-    let meta = null;
 
-    text.split("\n").forEach(line => {
-        line = line.trim();
+    // --- 1. ボードごとのブロックに分割 ---
+    const rawBlocks = text
+        .trim()
+        .split(/\n(?=\[)/)  // メタ行 "[" の前で区切る
+        .map(b => b.trim());
 
-        if (line === "") return;
+    for (const block of rawBlocks) {
 
-        if (line.startsWith("[") && line.endsWith("]")) {
-            meta = line.slice(1, -1).split("/");
+        // --- 2. 行に分割 ---
+        const lines = block.split(/\r?\n/).map(l => l.trim());
+        if (lines.length < 2) continue;
 
-            if (currentBoard.length > 0) {
-                boards.push({ grid: currentBoard, meta });
-                currentBoard = [];
-            }
-        } else {
-            currentBoard.push(line.split(""));
+        // --- 3. メタ行を取得 ---
+        const metaLine = lines[lines.length - 1];
+        const meta = metaLine.match(/\[(\d+)\/(\d+)\/([0-9A-Fa-f]{3})\/\/([A-Za-z])\]/);
+
+        if (!meta) {
+            console.error("メタ行エラー:", metaLine);
+            continue;
         }
-    });
+
+        const size = parseInt(meta[1]);
+        const mineCount = parseInt(meta[2]);
+        const ruleChar = meta[4];
+
+        // --- 4. 盤面行を取り出す ---
+        const boardLines = lines.slice(0, -1);  // 最後がメタなので除外
+
+        if (boardLines.length !== size) {
+            console.error("行数が一致しない:", boardLines.length, size);
+            continue;
+        }
+
+        const grid = [];
+
+        for (let r = 0; r < size; r++) {
+            const row = boardLines[r];
+            if (row.length !== size) {
+                console.error("列数が一致しない:", row.length, size);
+                continue;
+            }
+
+            const rowArr = [];
+            for (let c = 0; c < size; c++) {
+                const ch = row[c];
+
+                rowArr.push({
+                    mine: ch === "1",
+                    revealed: ch === "-",   // "-" は開封済み
+                    flagged: false,
+                    num: 0,
+                    row: r,
+                    col: c
+                });
+            }
+
+            grid.push(rowArr);
+        }
+
+        boards.push({
+            grid,
+            meta: [size, mineCount, meta[3], ruleChar]
+        });
+    }
 
     return boards;
 }
-
 
 // =============================================
 // 新規ゲーム開始
