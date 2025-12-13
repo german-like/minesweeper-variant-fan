@@ -18,7 +18,7 @@ let firstClick = false;
 let shovelMode = true; // true: 掘る, false: 旗モード
 
 // =============================================
-// .brd ファイルの読み込み
+// .brd ファイルの読み込み（複数盤面対応）
 // =============================================
 async function loadBoards() {
     const response = await fetch("boards.brd");
@@ -43,19 +43,27 @@ async function loadBoards() {
         }
     });
 
+    // 最後の盤面も追加
+    if (currentBoard.length > 0 && meta) boards.push({ grid: currentBoard, meta });
+
     return boards;
 }
 
 // =============================================
-// 新規ゲーム開始（.brd から読み込む）
+// 新規ゲーム開始（複数盤面からランダム選択）
 // =============================================
 async function startNew() {
     statusEl.textContent = "盤面読込中…";
     boardEl.innerHTML = "";
 
     const boards = await loadBoards();
-    const picked = boards[Math.floor(Math.random() * boards.length)]; // ランダムに1つ選ぶ
+    if (boards.length === 0) {
+        statusEl.textContent = "盤面がありません";
+        return;
+    }
 
+    // ランダムに1つ選択
+    const picked = boards[Math.floor(Math.random() * boards.length)];
     const rawGrid = picked.grid;
     const meta = picked.meta;
 
@@ -73,13 +81,11 @@ async function startNew() {
     firstClick = false;
     ruleSelect.disabled = false;
 
-    // ========================
     // .brd の盤面をそのまま grid に反映
-    // ========================
     grid = rawGrid.map((row, r) =>
         row.map((cell, c) => ({
             mine: cell === "1",
-            revealed: cell === "-", // "-" は初期オープンマス
+            revealed: cell === "-", // 初期オープンマス
             flagged: false,
             num: 0,
             row: r,
