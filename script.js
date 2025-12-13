@@ -16,202 +16,119 @@ let mineCount = 0;
 let flagsLeft = 0;
 let gameOver = false;
 let firstClick = false;
-
-let shovelMode = true; // true: 掘る, false: 旗
-
-
-// =============================================
-// .brd ファイルの読み込み
-// 0 = 未開封安全
-// 1 = 未開封地雷
-// - = 開封済み安全
-// =============================================
-async function loadBoards() {
-    const response = await fetch("boards.brd");
-    const text = await response.text();
-
-    const boards = [];
-
-    // メタ行 "[" の前で区切る
-    const blocks = text.trim().split(/\n(?=\[)/);
-
-    for (const block of blocks) {
-        const lines = block.split(/\r?\n/).map(l => l.trim());
-        if (lines.length < 2) continue;
-
-        // メタ行
-        const metaLine = lines[lines.length - 1];
-        const metaMatch = metaLine.match(/\[(\d+)\/(\d+)\/([0-9A-Fa-f]{3})\/([A-Za-z])\]/);
-
-        if (!metaMatch) {
-            console.error("メタ行エラー:", metaLine);
-            continue;
-        }
-
-        const size = parseInt(metaMatch[1]);
-        const mines = parseInt(metaMatch[2]);
-        const ruleChar = metaMatch[4];
-
-        const boardLines = lines.slice(0, -1);
-        if (boardLines.length !== size) {
-            console.error("行数不一致");
-            continue;
-        }
-
-        const grid = [];
-
-        for (let r = 0; r < size; r++) {
-            const row = boardLines[r];
-            if (row.length !== size) {
-                console.error("列数不一致");
-                continue;
-            }
-
-            const rowArr = [];
-            for (let c = 0; c < size; c++) {
-                const ch = row[c];
-                rowArr.push({
-                    mine: ch === "1",
-                    revealed: ch === "-",
-                    flagged: false,
-                    num: 0,
-                    row: r,
-                    col: c
-                });
-            }
-            grid.push(rowArr);
-        }
-
-        boards.push({
-            grid,
-            meta: { size, mines, ruleChar }
-        });
-    }
-
-    return boards;
-}
-
+let shovelMode = true; // true: 掘る, false: 旗モード
 
 // =============================================
 // 新規ゲーム開始
 // =============================================
-async function startNew() {
-    statusEl.textContent = "盤面読込中…";
-    boardEl.innerHTML = "";
-
-    const boards = await loadBoards();
-    if (boards.length === 0) {
-        statusEl.textContent = "盤面がありません";
-        return;
-    }
-
-    const picked = boards[Math.floor(Math.random() * boards.length)];
-
-    rows = picked.meta.size;
-    cols = picked.meta.size;
-    mineCount = picked.meta.mines;
-
-    ruleSelect.value = picked.meta.ruleChar === "A" ? "amplify" : "normal";
-
+function startNew() {
+    rows = cols = parseInt(presetSelect.value);
+    mineCount = Math.floor(rows * cols * 0.2);
     flagsLeft = mineCount;
     flagsLeftEl.textContent = flagsLeft;
-
     gameOver = false;
     firstClick = false;
-
     ruleSelect.disabled = false;
     presetSelect.disabled = false;
 
-    // ★ ここ重要：もう再変換しない
-    grid = picked.grid;
+    // grid 初期化
+    grid = Array.from({length: rows}, (_, r) =>
+        Array.from({length: cols}, (_, c) => ({
+            mine: false,
+            revealed: false,
+            flagged: false,
+            num: 0,
+            row: r,
+            col: c
+        }))
+    );
 
+    placeMines();
     computeAdjacencies();
     renderBoard();
-
     statusEl.textContent = "準備完了";
 }
 
+// =============================================
+// 地雷配置
+// =============================================
+function placeMines() {
+    let placed = 0;
+    while (placed < mineCount) {
+        const r = Math.floor(Math.random() * rows);
+        const c = Math.floor(Math.random() * cols);
+        if (!grid[r][c].mine) {
+            grid[r][c].mine = true;
+            placed++;
+        }
+    }
+}
 
 // =============================================
-// 隣接地雷計算
+// 隣接地雷数計算（V/Aルール対応）
 // =============================================
 function computeAdjacencies() {
     const amplify = ruleSelect.value === "amplify";
 
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-
-            const cell = grid[r][c];
-            if (cell.mine) {
-                cell.num = -1;
-                continue;
-            }
+    for (let r=0; r<rows; r++) {
+        for (let c=0; c<cols; c++) {
+            if (grid[r][c].mine) { grid[r][c].num = -1; continue; }
 
             let count = 0;
-
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    if (dr === 0 && dc === 0) continue;
-
-                    const nr = r + dr;
-                    const nc = c + dc;
-                    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-
+            for (let dr=-1; dr<=1; dr++) {
+                for (let dc=-1; dc<=1; dc++) {
+                    if (dr===0 && dc===0) continue;
+                    const nr = r+dr, nc = c+dc;
+                    if (nr<0||nr>=rows||nc<0||nc>=cols) continue;
                     if (grid[nr][nc].mine) {
                         if (amplify) {
-                            count += ((nr + nc) % 2 === 0) ? 2 : 1;
+                            const isDark = (nr+nc)%2===0;
+                            count += isDark ? 2 : 1;
                         } else {
                             count += 1;
                         }
                     }
                 }
             }
-            cell.num = count;
+            grid[r][c].num = count;
         }
     }
 }
 
-
 // =============================================
-// 描画
+// 盤面描画
 // =============================================
 function renderBoard() {
     boardEl.style.gridTemplateColumns = `repeat(${cols}, 30px)`;
     boardEl.style.gridTemplateRows = `repeat(${rows}, 30px)`;
     boardEl.innerHTML = "";
 
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
+    for (let r=0; r<rows; r++) {
+        for (let c=0; c<cols; c++) {
             const cell = grid[r][c];
             const div = document.createElement("div");
             div.className = "cell";
 
-            if (ruleSelect.value === "amplify" && (r + c) % 2 === 0) {
-                div.classList.add("dark");
-            }
+            if (ruleSelect.value==="amplify" && (r+c)%2===0) div.classList.add("dark");
 
             if (cell.revealed) {
                 div.classList.add("revealed");
                 div.classList.remove("dark");
-
                 if (cell.mine) {
-                    div.textContent = "●";
                     div.classList.add("mine");
-                } else if (cell.num > 0) {
+                    div.textContent = "●";
+                } else if (cell.num>0) {
                     div.textContent = cell.num;
                 }
             } else if (cell.flagged) {
-                div.textContent = "⚑";
                 div.classList.add("flag");
+                div.textContent = "⚑";
             }
 
-            div.addEventListener("click", () => {
-                shovelMode ? onCellClick(r, c) : toggleFlag(r, c);
-            });
-
-            div.addEventListener("contextmenu", e => {
+            div.addEventListener("click", ()=>onCellClick(r,c));
+            div.addEventListener("contextmenu", (e)=>{
                 e.preventDefault();
-                toggleFlag(r, c);
+                toggleFlag(r,c);
             });
 
             boardEl.appendChild(div);
@@ -219,109 +136,113 @@ function renderBoard() {
     }
 }
 
-
 // =============================================
-// セル操作
+// セルを開く
 // =============================================
-function onCellClick(r, c) {
-    if (gameOver) return;
+function onCellClick(r,c){
+    if(gameOver) return;
 
-    if (!firstClick) {
-        firstClick = true;
-        ruleSelect.disabled = true;
-        presetSelect.disabled = true;
+    if(!firstClick){
+        firstClick=true;
+        ruleSelect.disabled=true;
+        presetSelect.disabled=true;
     }
 
-    const cell = grid[r][c];
-    if (cell.revealed || cell.flagged) return;
+    const cell=grid[r][c];
+    if(cell.revealed || cell.flagged) return;
 
-    cell.revealed = true;
+    cell.revealed=true;
 
-    if (cell.mine) {
-        gameOver = true;
+    if(cell.mine){
+        gameOver=true;
         revealAllMines();
-        statusEl.textContent = "ゲームオーバー…";
+        statusEl.textContent="ゲームオーバー…";
         return;
     }
 
-    if (cell.num === 0) openZeroArea(r, c);
+    if(cell.num===0) openZeroArea(r,c);
 
     checkWin();
     renderBoard();
 }
 
-
-function openZeroArea(r, c) {
-    for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-            const nr = r + dr;
-            const nc = c + dc;
-            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-
-            const cell = grid[nr][nc];
-            if (!cell.revealed && !cell.flagged) {
-                cell.revealed = true;
-                if (cell.num === 0) openZeroArea(nr, nc);
+// =============================================
+// 0の周囲を開く
+// =============================================
+function openZeroArea(r,c){
+    for(let dr=-1;dr<=1;dr++){
+        for(let dc=-1;dc<=1;dc++){
+            const nr=r+dr,nc=c+dc;
+            if(nr<0||nr>=rows||nc<0||nc>=cols) continue;
+            const cell=grid[nr][nc];
+            if(!cell.revealed && !cell.flagged){
+                cell.revealed=true;
+                if(cell.num===0) openZeroArea(nr,nc);
             }
         }
     }
 }
 
-
 // =============================================
-// 旗
+// 旗の切り替え
 // =============================================
-function toggleFlag(r, c) {
-    if (gameOver) return;
+function toggleFlag(r,c){
+    if(gameOver) return;
+    const cell=grid[r][c];
+    if(cell.revealed) return;
 
-    const cell = grid[r][c];
-    if (cell.revealed) return;
-
-    if (cell.flagged) {
-        cell.flagged = false;
+    if(cell.flagged){
+        cell.flagged=false;
         flagsLeft++;
-    } else {
-        if (flagsLeft <= 0) return;
-        cell.flagged = true;
+    }else{
+        if(flagsLeft<=0) return;
+        cell.flagged=true;
         flagsLeft--;
     }
-
-    flagsLeftEl.textContent = flagsLeft;
+    flagsLeftEl.textContent=flagsLeft;
     renderBoard();
 }
 
+// =============================================
+// 全地雷表示
+// =============================================
+function revealAllMines(){
+    for(let r=0;r<rows;r++)
+        for(let c=0;c<cols;c++)
+            if(grid[r][c].mine) grid[r][c].revealed=true;
 
-// =============================================
-// 終了処理
-// =============================================
-function revealAllMines() {
-    grid.flat().forEach(c => { if (c.mine) c.revealed = true; });
-    ruleSelect.disabled = false;
-    presetSelect.disabled = false;
+    ruleSelect.disabled=false;
+    presetSelect.disabled=false;
+
     renderBoard();
 }
 
-function checkWin() {
-    for (const row of grid)
-        for (const cell of row)
-            if (!cell.mine && !cell.revealed) return;
+// =============================================
+// 勝利チェック
+// =============================================
+function checkWin(){
+    for(let r=0;r<rows;r++)
+        for(let c=0;c<cols;c++)
+            if(!grid[r][c].mine && !grid[r][c].revealed) return;
 
-    gameOver = true;
-    statusEl.textContent = "勝利！";
-    ruleSelect.disabled = false;
-    presetSelect.disabled = false;
+    gameOver=true;
+    statusEl.textContent="勝利！";
+    ruleSelect.disabled=false;
+    presetSelect.disabled=false;
 }
 
-
 // =============================================
-// UI
+// モード切替
 // =============================================
-modeBtn.addEventListener("click", () => {
-    shovelMode = !shovelMode;
-    modeBtn.textContent = shovelMode ? "シャベル" : "旗";
+modeBtn.addEventListener("click",()=>{
+    shovelMode=!shovelMode;
+    modeBtn.textContent=shovelMode?"シャベル":"旗";
 });
 
-newBtn.addEventListener("click", startNew);
+// =============================================
+// 新規作成
+// =============================================
+newBtn.addEventListener("click",startNew);
 
 // 初期起動
 startNew();
