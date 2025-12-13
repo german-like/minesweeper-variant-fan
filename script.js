@@ -17,11 +17,14 @@ let flagsLeft = 0;
 let gameOver = false;
 let firstClick = false;
 
-let shovelMode = true;   // true: 掘る, false: 旗モード
+let shovelMode = true; // true: 掘る, false: 旗
 
 
 // =============================================
-// .brd ファイルの読み込み（0/1/- 対応版）
+// .brd ファイルの読み込み
+// 0 = 未開封安全
+// 1 = 未開封地雷
+// - = 開封済み安全
 // =============================================
 async function loadBoards() {
     const response = await fetch("boards.brd");
@@ -29,36 +32,29 @@ async function loadBoards() {
 
     const boards = [];
 
-    // --- 1. ボードごとのブロックに分割 ---
-    const rawBlocks = text
-        .trim()
-        .split(/\n(?=\[)/)  // メタ行 "[" の前で区切る
-        .map(b => b.trim());
+    // メタ行 "[" の前で区切る
+    const blocks = text.trim().split(/\n(?=\[)/);
 
-    for (const block of rawBlocks) {
-
-        // --- 2. 行に分割 ---
+    for (const block of blocks) {
         const lines = block.split(/\r?\n/).map(l => l.trim());
         if (lines.length < 2) continue;
 
-        // --- 3. メタ行を取得 ---
+        // メタ行
         const metaLine = lines[lines.length - 1];
-        const meta = metaLine.match(/\[(\d+)\/(\d+)\/([0-9A-Fa-f]{3})\/([A-Za-z])\]/);
+        const metaMatch = metaLine.match(/\[(\d+)\/(\d+)\/([0-9A-Fa-f]{3})\/([A-Za-z])\]/);
 
-        if (!meta) {
+        if (!metaMatch) {
             console.error("メタ行エラー:", metaLine);
             continue;
         }
 
-        const size = parseInt(meta[1]);
-        const mineCount = parseInt(meta[2]);
-        const ruleChar = meta[4];
+        const size = parseInt(metaMatch[1]);
+        const mines = parseInt(metaMatch[2]);
+        const ruleChar = metaMatch[4];
 
-        // --- 4. 盤面行を取り出す ---
-        const boardLines = lines.slice(0, -1);  // 最後がメタなので除外
-
+        const boardLines = lines.slice(0, -1);
         if (boardLines.length !== size) {
-            console.error("行数が一致しない:", boardLines.length, size);
+            console.error("行数不一致");
             continue;
         }
 
@@ -67,35 +63,34 @@ async function loadBoards() {
         for (let r = 0; r < size; r++) {
             const row = boardLines[r];
             if (row.length !== size) {
-                console.error("列数が一致しない:", row.length, size);
+                console.error("列数不一致");
                 continue;
             }
 
             const rowArr = [];
             for (let c = 0; c < size; c++) {
                 const ch = row[c];
-
                 rowArr.push({
                     mine: ch === "1",
-                    revealed: ch === "-",   // "-" は開封済み
+                    revealed: ch === "-",
                     flagged: false,
                     num: 0,
                     row: r,
                     col: c
                 });
             }
-
             grid.push(rowArr);
         }
 
         boards.push({
             grid,
-            meta: [size, mineCount, meta[3], ruleChar]
+            meta: { size, mines, ruleChar }
         });
     }
 
     return boards;
 }
+
 
 // =============================================
 // 新規ゲーム開始
@@ -105,17 +100,18 @@ async function startNew() {
     boardEl.innerHTML = "";
 
     const boards = await loadBoards();
+    if (boards.length === 0) {
+        statusEl.textContent = "盤面がありません";
+        return;
+    }
+
     const picked = boards[Math.floor(Math.random() * boards.length)];
 
-    const rawGrid = picked.grid;
-    const meta = picked.meta;
+    rows = picked.meta.size;
+    cols = picked.meta.size;
+    mineCount = picked.meta.mines;
 
-    rows = parseInt(meta[0]);
-    cols = parseInt(meta[0]);
-    mineCount = parseInt(meta[1]);
-    const ruleCode = meta[4];   // "V" or "A"
-
-    ruleSelect.value = ruleCode === "V" ? "normal" : "amplify";
+    ruleSelect.value = picked.meta.ruleChar === "A" ? "amplify" : "normal";
 
     flagsLeft = mineCount;
     flagsLeftEl.textContent = flagsLeft;
@@ -126,16 +122,8 @@ async function startNew() {
     ruleSelect.disabled = false;
     presetSelect.disabled = false;
 
-    grid = rawGrid.map((row, r) =>
-        row.map((cell, c) => ({
-            mine: cell === "1",
-            revealed: cell === "-",
-            flagged: false,
-            num: 0,
-            row: r,
-            col: c
-        }))
-    );
+    // ★ ここ重要：もう再変換しない
+    grid = picked.grid;
 
     computeAdjacencies();
     renderBoard();
@@ -145,7 +133,7 @@ async function startNew() {
 
 
 // =============================================
-// 隣接地雷計算（増幅モード対応）
+// 隣接地雷計算
 // =============================================
 function computeAdjacencies() {
     const amplify = ruleSelect.value === "amplify";
@@ -153,8 +141,9 @@ function computeAdjacencies() {
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
 
-            if (grid[r][c].mine) {
-                grid[r][c].num = -1;
+            const cell = grid[r][c];
+            if (cell.mine) {
+                cell.num = -1;
                 continue;
             }
 
@@ -162,26 +151,22 @@ function computeAdjacencies() {
 
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
-
                     if (dr === 0 && dc === 0) continue;
 
                     const nr = r + dr;
                     const nc = c + dc;
-
                     if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
 
                     if (grid[nr][nc].mine) {
                         if (amplify) {
-                            const isDark = ((nr + nc) % 2 === 0);
-                            count += isDark ? 2 : 1;
+                            count += ((nr + nc) % 2 === 0) ? 2 : 1;
                         } else {
                             count += 1;
                         }
                     }
                 }
             }
-
-            grid[r][c].num = count;
+            cell.num = count;
         }
     }
 }
@@ -197,10 +182,8 @@ function renderBoard() {
 
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-
             const cell = grid[r][c];
             const div = document.createElement("div");
-
             div.className = "cell";
 
             if (ruleSelect.value === "amplify" && (r + c) % 2 === 0) {
@@ -212,28 +195,21 @@ function renderBoard() {
                 div.classList.remove("dark");
 
                 if (cell.mine) {
-                    div.classList.add("mine");
                     div.textContent = "●";
+                    div.classList.add("mine");
                 } else if (cell.num > 0) {
                     div.textContent = cell.num;
                 }
             } else if (cell.flagged) {
-                div.classList.add("flag");
                 div.textContent = "⚑";
+                div.classList.add("flag");
             }
 
-            // 左クリック
             div.addEventListener("click", () => {
-
-                if (shovelMode) {
-                    onCellClick(r, c);   // 掘る
-                } else {
-                    toggleFlag(r, c);   // 旗
-                }
+                shovelMode ? onCellClick(r, c) : toggleFlag(r, c);
             });
 
-            // 右クリック
-            div.addEventListener("contextmenu", (e) => {
+            div.addEventListener("contextmenu", e => {
                 e.preventDefault();
                 toggleFlag(r, c);
             });
@@ -245,7 +221,7 @@ function renderBoard() {
 
 
 // =============================================
-// セルを開く
+// セル操作
 // =============================================
 function onCellClick(r, c) {
     if (gameOver) return;
@@ -257,7 +233,6 @@ function onCellClick(r, c) {
     }
 
     const cell = grid[r][c];
-
     if (cell.revealed || cell.flagged) return;
 
     cell.revealed = true;
@@ -269,28 +244,21 @@ function onCellClick(r, c) {
         return;
     }
 
-    if (cell.num === 0) {
-        openZeroArea(r, c);
-    }
+    if (cell.num === 0) openZeroArea(r, c);
 
     checkWin();
     renderBoard();
 }
 
 
-// =============================================
-// 0 のマスを広げる
-// =============================================
 function openZeroArea(r, c) {
     for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
-
             const nr = r + dr;
             const nc = c + dc;
             if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
 
             const cell = grid[nr][nc];
-
             if (!cell.revealed && !cell.flagged) {
                 cell.revealed = true;
                 if (cell.num === 0) openZeroArea(nr, nc);
@@ -306,14 +274,7 @@ function openZeroArea(r, c) {
 function toggleFlag(r, c) {
     if (gameOver) return;
 
-    if (!firstClick) {
-        firstClick = true;
-        ruleSelect.disabled = true;
-        presetSelect.disabled = true;
-    }
-
     const cell = grid[r][c];
-
     if (cell.revealed) return;
 
     if (cell.flagged) {
@@ -331,30 +292,19 @@ function toggleFlag(r, c) {
 
 
 // =============================================
-// 全地雷を表示
+// 終了処理
 // =============================================
 function revealAllMines() {
-    grid.forEach(row =>
-        row.forEach(cell => {
-            if (cell.mine) cell.revealed = true;
-        })
-    );
-
+    grid.flat().forEach(c => { if (c.mine) c.revealed = true; });
     ruleSelect.disabled = false;
     presetSelect.disabled = false;
-
     renderBoard();
 }
 
-
-// =============================================
-// 勝利チェック
-// =============================================
 function checkWin() {
-    for (let r = 0; r < rows; r++)
-        for (let c = 0; c < cols; c++)
-            if (!grid[r][c].mine && !grid[r][c].revealed)
-                return;
+    for (const row of grid)
+        for (const cell of row)
+            if (!cell.mine && !cell.revealed) return;
 
     gameOver = true;
     statusEl.textContent = "勝利！";
@@ -364,19 +314,14 @@ function checkWin() {
 
 
 // =============================================
-// モード切替
+// UI
 // =============================================
 modeBtn.addEventListener("click", () => {
     shovelMode = !shovelMode;
     modeBtn.textContent = shovelMode ? "シャベル" : "旗";
 });
 
-
-// =============================================
-// 新規作成
-// =============================================
 newBtn.addEventListener("click", startNew);
-
 
 // 初期起動
 startNew();
